@@ -1,44 +1,47 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+//get the wrap token from passed in parameter
+var wrap_token = process.argv[2];
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+if (!wrap_token) {
+	console.error("No wrap token, enter token as argument");
+	process.exit();
+}
 
-var app = express();
+var options = {
+	apiVersion: "v1", // default
+	endpoint: "http://127.0.0.1:8200",
+	token: wrap_token, //wrap token
+};
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
+console.log("Token being used " + process.argv[2]);
 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+// get new instance of the client
+var vault = require("node-vault")(options);
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+//role that you are using
+const roleId = "f5df3249-d3d9-1e0b-af41-084b0b74ae2e";
 
-let apiKey = process.env.APIKEY;
-app.set('apiKey', apiKey);
+//using the wrap token to unwrap and get the secret
+vault
+	.unwrap()
+	.then((result) => {
+		var secretId = result.data.secret_id;
+		console.log("Your secret id is " + result.data.secret_id);
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
-});
+		//login with approleLogin
+		vault.approleLogin({ role_id: roleId, secret_id: secretId }).then((login_result) => {
+			var client_token = login_result.auth.client_token;
+			console.log("Using client token to login " + client_token);
+			var client_options = {
+				apiVersion: "v1", // default
+				endpoint: "http://127.0.0.1:8200",
+				token: client_token, //client token
+			};
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+			var client_vault = require("node-vault")(client_options);
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
-});
-
-module.exports = app;
+			client_vault.read("secret/weatherapp/config").then((read_result) => {
+				console.log(read_result);
+			});
+		});
+	})
+	.catch(console.error);
