@@ -22,7 +22,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 
-let apiKey = '7dab534be457f48d3070c26eba0a20cd'; //use the key you got from OpenWeather, the one here is a fake one
+let apiKey = process.env.APIKEY;
 app.set('apiKey', apiKey);
 
 // catch 404 and forward to error handler
